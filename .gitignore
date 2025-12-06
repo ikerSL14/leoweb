@@ -1,0 +1,28 @@
+# Entorno virtual
+.venv/
+venv/
+
+# Cache de Python
+__pycache__/
+*.pyc
+
+# Carpetas de Reflex que no deben subirse
+.web/
+rxapp/
+.reflex/
+state/
+build/
+
+# Node modules (si Reflex los usa internamente)
+node_modules/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de logs
+*.log
+
+# Archivos de configuración locales
+.env
+.env.local
