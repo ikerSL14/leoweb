@@ -11,12 +11,10 @@ def fetch_products():
     products = []
     try:
         conn = get_connection()
-        print("CONEXION OK:", conn)
 
         cur = conn.cursor()
         cur.execute("SELECT id_producto, nombre, precio FROM menu ORDER BY id_producto;")
         rows = cur.fetchall()
-        print("FILAS OBTENIDAS:", rows)
 
         for row in rows:
             id_producto, nombre, precio = row
@@ -26,7 +24,6 @@ def fetch_products():
                 "price": float(precio)
             })
 
-        print("PRODUCTOS PROCESADOS:", products)
 
     except Exception as e:
         print("ERROR FETCH_PRODUCTS:", e)
@@ -132,9 +129,7 @@ class EventState(rx.State):
 
     # Cargar productos al iniciar
     def on_load(self):
-        print("ON LOAD EJECUTADO!")
         self.products = fetch_products()
-        print("PRODUCTS CARGADOS EN STATE:", self.products)
 
     # ---------------------------------------
     # SETTERS
@@ -572,7 +567,7 @@ def eventos_page():
         min_height="100vh",
         background=(
         "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), "
-        "url('https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba')"
+        "url('https://images.unsplash.com/photo-1659345737306-7022e0687e0d?q=80&w=1631&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')"
         ),
         background_size="cover",
         background_position="center",

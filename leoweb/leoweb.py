@@ -5,6 +5,7 @@ from .auth_state import AuthState
 from .productos import productos_page
 from .reservaciones import reservaciones_page
 from .eventos import eventos_page
+from .perfil import perfil_page
 from .sidebar import sidebar, sidebar_button
 from .ui_state import UIState
 
@@ -322,3 +323,4 @@ app.add_page(login_page, route="/login", title="Iniciar sesión")
 app.add_page(productos_page, route="/productos", title="Productos")
 app.add_page(reservaciones_page, route="/reservaciones", title="Reservaciones")
 app.add_page(eventos_page, route="/eventos", title="Eventos a Domicilio")
+app.add_page(perfil_page, route="/perfil", title="Perfil")

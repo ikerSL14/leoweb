@@ -46,7 +46,7 @@ def sidebar(active_item=None):
                 rx.fragment(
                     sidebar_item("Reservaciones", "calendar-check", active=(active_item=="reservaciones"), link="/reservaciones"),
                     sidebar_item("Eventos a domicilio", "utensils", active=(active_item=="eventos"), link="/eventos"),
-                    sidebar_item("Perfil", "user", active=(active_item=="perfil")),
+                    sidebar_item("Perfil", "user", active=(active_item=="perfil"), link="/perfil"),
                 )
             ),
 

@@ -31,7 +31,24 @@ class ReservaState(rx.State):
     async def set_fecha_y_buscar_horas(self, fecha: str):
         self.fecha = fecha
         self.hora = "" # Reseteamos la hora seleccionada previa
+
+         # Si el usuario todavía no seleccionó fecha (campo vacío) mostramos aviso
+        if not self.fecha:
+            return rx.toast.warning(
+                "Selecciona una fecha para ver las horas disponibles.",
+                position="bottom-right"
+            )
+    
         await self.cargar_horas_disponibles()
+
+        # 🔴 AQUÍ ESTÁ LA SOLUCIÓN:
+        # Verificamos si la lista quedó vacía DESPUÉS de cargar
+        if not self.horas_disponibles:
+            return rx.toast.warning(
+                "No quedan horas disponibles para este día.",
+                position="bottom-right",
+                duration=4000
+            )
 
     async def cargar_horas_disponibles(self):
         if not self.fecha:
@@ -98,10 +115,6 @@ class ReservaState(rx.State):
 
             self.horas_disponibles = horas_libres
             
-            # Si no hay horas, avisar (opcional)
-            if not self.horas_disponibles:
-                rx.toast.warning("No hay horarios disponibles para esta fecha.", position="bottom-right")
-
         except Exception as e:
             print(f"Error buscando horas: {e}")
             self.horas_disponibles = [] # Fallback seguro
@@ -109,6 +122,13 @@ class ReservaState(rx.State):
             if conn:
                 conn.close()
     
+    def verificar_fecha_para_horas(self):
+        if not self.fecha: 
+            return rx.toast.warning(
+                "Selecciona una fecha para ver las horas disponibles.",
+                position="bottom-right"
+            )
+
     def set_cant_personas(self, value: str):
         try:
             n = int(value)
@@ -199,6 +219,7 @@ def glass_card(*children):
 # RESERVACIONES PAGE (MODIFICADA)
 # --------------------------
 def reservaciones_page():
+    
     return rx.box(
         sidebar(active_item="reservaciones"),
         sidebar_button(),
@@ -227,34 +248,49 @@ def reservaciones_page():
                         spacing="1",
                         width="50%"
                     ),
+                    # ---------------------------------------------------------
+                    # 🟡 COLUMNA HORA CON "ESCUDO INVISIBLE"
+                    # ---------------------------------------------------------
                     rx.vstack(
                         rx.text("Hora Disponible", color="white", margin_bottom="5px"),
                         
-                        # 8. USAMOS SELECT EN LUGAR DE INPUT TIME
-                        rx.select(
-                            ReservaState.horas_disponibles, # La lista filtrada desde BD
-                            placeholder="Selecciona hora...",
-                            on_change=ReservaState.set_hora,
-                            value=ReservaState.hora, # Vinculado para poder limpiarlo
-                            size="3",
-                            width="100%",
-                            background="rgba(255,255,255,0.08)",
-                            color="white",
-                            border_radius="10px",
-                            border="1px solid rgba(255,255,255,0.2)", # Agregamos un borde sutil
+                        rx.box(
+                            # 1. El Select Real (Siempre está ahí visualmente)
+                            rx.select(
+                                ReservaState.horas_disponibles,
+                                placeholder="Selecciona hora...",
+                                on_change=ReservaState.set_hora,
+                                value=ReservaState.hora,
+                                size="3", width="100%", background="rgba(255,255,255,0.08)", color="white", border_radius="10px",
+                                border="1px solid rgba(255,255,255,0.2)",
+                                style={"color-scheme": "dark", "padding-left": "10px"},
+                                _placeholder={"color": "rgba(255,255,255,0.5)"},
+                                _hover={"background": "rgba(255,255,255,0.12)"},
+                            ),
 
-                            # ⬅️ ESTILOS AVANZADOS PARA EL PLACEHOLDER, FLECHA Y TEXTO
-                            style={
-                                "color-scheme": "dark", # Asegura que la flecha sea clara
-                                "padding-left": "10px",
-                            },
-                            _placeholder={"color": "rgba(255,255,255,0.5)"}, # Estilo del placeholder
-                            _hover={"background": "rgba(255,255,255,0.12)"}, # Estilo al pasar el ratón
+                            # 2. El Escudo Invisible
+                            # Solo se renderiza si la fecha está vacía ("")
+                            rx.cond(
+                                ReservaState.fecha == "",
+                                rx.box(
+                                    width="100%",
+                                    height="100%",
+                                    position="absolute", # Se pone encima del padre
+                                    top="0",
+                                    left="0",
+                                    z_index="10", # Asegura que esté encima del Select
+                                    cursor="not-allowed", # Opcional: cambia el cursor
+                                    # Al hacer click aquí, lanzamos el aviso
+                                    on_click=ReservaState.verificar_fecha_para_horas,
+                                )
+                            ),
                             
-                            # ⬅️ IMPORTANTE: ELIMINAR variant="soft" 
+                            # Estilos del contenedor padre para permitir el posicionamiento
+                            position="relative", 
+                            width="100%"
                         ),
-                        spacing="1",
-                        width="50%"
+                        
+                        spacing="1", width="50%"
                     ),
                     spacing="4",
                     margin_bottom="20px",

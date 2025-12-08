@@ -1,5 +1,7 @@
 import reflex as rx
 import psycopg2
+# 🟢 Añadir la importación del hash
+from passlib.hash import pbkdf2_sha256 # <-- AGREGAR ESTA LÍNEA
 
 def get_connection():
     return psycopg2.connect(
@@ -37,7 +39,7 @@ class AuthState(rx.State):
 
             user_id, rol, stored_password = result
 
-            if self.password != stored_password:
+            if not pbkdf2_sha256.verify(self.password, stored_password):
                 rx.toast.error("Contraseña incorrecta")
                 return
             
@@ -55,6 +57,8 @@ class AuthState(rx.State):
 
         except Exception as e:
             self.error = f"Error: {str(e)}"
+            # 🟢 MOSTRAR EL ERROR DE LA DB AL USUARIO
+            return rx.toast.error(f"Error de conexión o consulta: {str(e)}")
 
         finally:
             conn.close()
