@@ -11,9 +11,13 @@ def fetch_products():
     products = []
     try:
         conn = get_connection()
+        print("CONEXION OK:", conn)
+
         cur = conn.cursor()
         cur.execute("SELECT id_producto, nombre, precio FROM menu ORDER BY id_producto;")
         rows = cur.fetchall()
+        print("FILAS OBTENIDAS:", rows)
+
         for row in rows:
             id_producto, nombre, precio = row
             products.append({
@@ -21,11 +25,20 @@ def fetch_products():
                 "name": nombre,
                 "price": float(precio)
             })
+
+        print("PRODUCTOS PROCESADOS:", products)
+
     except Exception as e:
-        print(f"Error al obtener productos: {e}")
+        print("ERROR FETCH_PRODUCTS:", e)
+
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except:
+            pass
+
     return products
+
 
 
 # --------------------------------------------------------
@@ -42,6 +55,63 @@ class EventState(rx.State):
     menu_modal_open: bool = False
     productos_seleccionados: list[dict] = []
     total: float = 0.0
+
+    current_product: str = ""
+    current_quantity: int = 1
+
+    lineas_menu: list[dict] = []
+    def nueva_linea_menu(self):
+        self.lineas_menu.append({
+            "producto": "",
+            "cantidad": 1,
+            "precio": 0
+        })
+    
+    def set_linea_producto(self, index, nombre):
+        self.lineas_menu[index]["producto"] = nombre
+        for p in self.products:
+            if p["name"] == nombre:
+                self.lineas_menu[index]["precio"] = p["price"]
+        self.update_total()
+    
+    def set_linea_cantidad(self, index, cantidad):
+        try:
+            n = int(cantidad)
+            self.lineas_menu[index]["cantidad"] = max(1, n)
+        except:
+            self.lineas_menu[index]["cantidad"] = 1
+        self.update_total()
+    
+    def eliminar_linea(self, index):
+        self.lineas_menu.pop(index)
+        self.update_total()
+    
+
+    def set_current_product(self, v):
+        self.current_product = v
+
+    def set_current_quantity(self, v):
+        try:
+            q = int(v)
+            self.current_quantity = max(1, q)
+        except:
+            self.current_quantity = 1
+
+    def add_selected_product(self):
+        if not self.current_product:
+            return
+
+        # Encontrar producto en la lista
+        for p in self.products:
+            if p["name"] == self.current_product:
+                self.add_producto(p["id"], p["name"], p["price"])
+                self.current_product = ""
+                self.current_quantity = 1
+                return
+    
+    @rx.var
+    def product_names(self) -> list[str]:
+        return [p["name"] for p in self.products]
 
     @rx.var
     def subtotales(self) -> list[str]:
@@ -62,7 +132,9 @@ class EventState(rx.State):
 
     # Cargar productos al iniciar
     def on_load(self):
+        print("ON LOAD EJECUTADO!")
         self.products = fetch_products()
+        print("PRODUCTS CARGADOS EN STATE:", self.products)
 
     # ---------------------------------------
     # SETTERS
@@ -123,16 +195,72 @@ class EventState(rx.State):
 
     def update_total(self):
         self.total = sum(
-            p["cantidad"] * p["precio"] for p in self.productos_seleccionados
+            l["cantidad"] * l["precio"] for l in self.lineas_menu
         )
 
     def save_menu(self):
+        if not self.lineas_menu:
+            return rx.toast.error("Agrega al menos un platillo.")
+
+        self.productos_seleccionados = []
+        for l in self.lineas_menu:
+            if l["producto"] == "":
+                return rx.toast.error("Completa todos los productos antes de guardar.")
+
+            # Buscar id
+            for p in self.products:
+                if p["name"] == l["producto"]:
+                    self.productos_seleccionados.append({
+                        "id": p["id"],
+                        "name": l["producto"],
+                        "cantidad": l["cantidad"],
+                        "precio": l["precio"]
+                    })
+
         self.menu_modal_open = False
+        rx.toast.success("Menú guardado!")
+
+    @rx.var
+    def lineas_subtotales(self) -> list[str]:
+        arr = []
+        for l in self.lineas_menu:
+            try:
+                arr.append(f"${(l['cantidad'] * l['precio']):.2f}")
+            except:
+                arr.append("$0.00")
+        return arr
+
 
     # ---------------------------------------
     # BD: Guardar Evento
     # ---------------------------------------
     def submit_event(self, current_user):
+         # ⚠ Validar usuario
+        if not current_user:
+            return rx.toast.error("Debes iniciar sesión.", position="bottom-right")
+
+        # ⚠ Validar campos obligatorios
+        if not self.fecha:
+            return rx.toast.warning("Selecciona una fecha para el evento.", position="bottom-right")
+
+        if not self.hora:
+            return rx.toast.warning("Selecciona una hora para el evento.", position="bottom-right")
+
+        if not self.ubicacion.strip():
+            return rx.toast.warning("Escribe la ubicación del evento.", position="bottom-right")
+
+        # ⚠ Validar número de personas
+        if self.cant_personas < 1:
+            return rx.toast.error("La cantidad mínima es 1 persona.", position="bottom-right")
+
+        # ⚠ Validar menú
+        if not self.productos_seleccionados:
+            return rx.toast.error("Agrega al menos un platillo al menú.", position="bottom-right")
+
+        # ⚠ Validar total
+        if self.total <= 0:
+            return rx.toast.error("El costo del menú debe ser mayor a 0.", position="bottom-right")
+
         if not self.fecha or not self.hora or not self.ubicacion:
             return rx.toast.error("Completa todos los campos")
 
@@ -166,7 +294,6 @@ class EventState(rx.State):
                 ))
 
             conn.commit()
-            rx.toast.success("Evento guardado correctamente!")
 
             # Reset
             self.fecha = ""
@@ -175,177 +302,278 @@ class EventState(rx.State):
             self.cant_personas = 1
             self.productos_seleccionados = []
             self.total = 0.0
+            return rx.toast.success("Evento guardado correctamente!")
 
         except Exception as e:
             print(f"Error al guardar evento: {e}")
-            rx.toast.error("Error al guardar evento")
+            return rx.toast.error("Error al guardar evento")
         finally:
             conn.close()
 
-@rx.page(on_load=EventState.on_load)
+def glass_card(*children):
+    return rx.box(
+        *children,
+        margin_top="76px",
+        width="700px",
+        padding="40px",
+        border_radius="20px",
+        background="rgba(0,0,0,0.35)",
+        backdrop_filter="blur(10px)",
+        border="1px solid rgba(255,255,255,0.15)",
+        box_shadow="0px 8px 25px rgba(0,0,0,0.4)",
+    )
+
+
+@rx.page(route="/eventos", on_load=EventState.on_load)
 def eventos_page():
+    _ = EventState.products   # fuerza a Reflex a registrar el state
     return rx.box(
         sidebar(active_item="eventos"),
         sidebar_button(),
 
-        rx.box(
-            rx.vstack(
+        rx.center(
+            glass_card(
+
                 rx.heading(
                     "Solicita un evento a domicilio",
                     color="white",
-                    size="8",
+                    size="6",
+                    margin_bottom="25px",
+                    text_align="center"
+                ),
+
+                # ----------------------
+                # FILA 1: FECHA + HORA
+                # ----------------------
+                rx.hstack(
+                    rx.vstack(
+                        rx.text("Fecha", color="white", margin_bottom="5px"),
+                        rx.input(
+                            type="date",
+                            value=EventState.fecha,
+                            on_change=EventState.set_fecha,
+                            size="3",
+                            width="100%",
+                            background="rgba(255,255,255,0.08)",
+                            color="white",
+                            border_radius="10px",
+                            padding_left="10px",
+                            style={"color-scheme": "dark"},
+                        ),
+                        spacing="1",
+                        width="50%"
+                    ),
+
+                    rx.vstack(
+                        rx.text("Hora", color="white", margin_bottom="5px"),
+                        rx.input(
+                            type="time",
+                            value=EventState.hora,
+                            on_change=EventState.set_hora,
+                            size="3",
+                            width="100%",
+                            background="rgba(255,255,255,0.08)",
+                            color="white",
+                            border_radius="10px",
+                            padding_left="10px",
+                            style={"color-scheme": "dark"},
+                        ),
+                        spacing="1",
+                        width="50%"
+                    ),
+
+                    spacing="4",
                     margin_bottom="20px"
                 ),
 
-                # FILA 1
+                # ----------------------
+                # FILA 2: UBICACIÓN + PERSONAS
+                # ----------------------
                 rx.hstack(
-                    rx.input(
-                        type_="date",
-                        value=EventState.fecha,
-                        on_change=EventState.set_fecha
+                    rx.vstack(
+                        rx.text("Ubicación", color="white", margin_bottom="5px"),
+                        rx.input(
+                            placeholder="Dirección del evento",
+                            value=EventState.ubicacion,
+                            on_change=EventState.set_ubicacion,
+                            size="3",
+                            width="100%",
+                            background="rgba(255,255,255,0.08)",
+                            color="white",
+                            border_radius="10px",
+                            padding_left="10px",
+                        ),
+                        spacing="1",
+                        width="70%"
                     ),
-                    rx.input(
-                        type_="time",
-                        value=EventState.hora,
-                        on_change=EventState.set_hora
+
+                    rx.vstack(
+                        rx.text("Personas", color="white", margin_bottom="5px"),
+                        rx.input(
+                            type="number",
+                            min=1,
+                            value=EventState.cant_personas,
+                            on_change=EventState.set_cant_personas,
+                            size="3",
+                            width="100%",
+                            background="rgba(255,255,255,0.08)",
+                            color="white",
+                            border_radius="10px",
+                            padding_left="10px",
+                        ),
+                        spacing="1",
+                        width="30%"
                     ),
-                    spacing="5",
-                    margin_bottom="20px",
+
+                    spacing="4",
+                    margin_bottom="25px"
                 ),
 
-                # FILA 2
-                rx.hstack(
-                    rx.input(
-                        type_="text",
-                        placeholder="Ubicación",
-                        value=EventState.ubicacion,
-                        on_change=EventState.set_ubicacion
-                    ),
-                    rx.input(
-                        type_="number",
-                        min=1,
-                        value=EventState.cant_personas,
-                        on_change=EventState.set_cant_personas
-                    ),
-                    spacing="5",
-                    margin_bottom="20px",
-                ),
-
-                # BOTÓN MENU
+                # ----------------------
+                # BOTÓN ABRIR MODAL MENÚ
+                # ----------------------
                 rx.button(
-                    "Arma tu menú",
+                    rx.hstack(
+                        rx.text("Arma tu menú"),
+                        rx.text(f"(${EventState.total:.2f})", opacity="0.8"),
+                        spacing="2"
+                    ),
                     on_click=EventState.toggle_menu_modal,
-                    color_scheme="red",
-                    margin_bottom="20px"
+                    background_color="#047e00",
+                    _hover={"background_color": "#006605"},
+                    width="100%",
+                    cursor="pointer",
+                    margin_top="20px",
+                    size="2",
+                    border_radius="10px",
+                    padding="10px",
+                    margin_bottom="16px"
                 ),
 
-                # MODAL
+                # ----------------------
+                # MODAL MENÚ (reemplazar)
+                # ----------------------
                 rx.dialog.root(
-                    rx.dialog.trigger(
-                        rx.button(
-                            "Arma tu menú",
-                            color_scheme="red",
-                            margin_bottom="20px"
-                        )
-                    ),
-
                     rx.dialog.content(
                         rx.vstack(
+
+                            # HEADER
                             rx.hstack(
                                 rx.dialog.title(
                                     rx.heading("Arma tu menú", size="6", color="white")
                                 ),
-                                rx.text(
-                                    EventState.total_str,
-                                    color="white",
-                                    margin_left="auto"
-                                ),
-                                spacing="4",
-                                width="100%"
+                                rx.text(EventState.total_str, color="white", margin_left="auto"),
+                                width="100%",
+                                margin_bottom="20px"
                             ),
 
-                            # LISTA DE PRODUCTOS SELECCIONADOS
+                            # BOTÓN AGREGAR PRODUCTO
+                            rx.button(
+                                "+ Agregar producto",
+                                on_click=EventState.nueva_linea_menu,
+                                color_scheme="blue",
+                                width="100%",
+                                cursor="pointer",
+                                margin_bottom="15px"
+                            ),
+
+                            # LISTA DE LÍNEAS
                             rx.foreach(
-                                EventState.productos_seleccionados,
-                                lambda p, i: rx.hstack(
-                                    rx.text(p["name"], color="white", width="200px"),
+                                EventState.lineas_menu,
+                                lambda linea, i:
+                                    rx.hstack(
+                                        # SELECT PRODUCTOS: pasar la lista POSICIONALMENTE
+                                        rx.select(
+                                            EventState.product_names,            # <- items como primer arg
+                                            value=linea["producto"],
+                                            on_change=lambda v, idx=i: EventState.set_linea_producto(idx, v),
+                                            placeholder="Selecciona platillo",
+                                            width="45%",
+                                        ),
 
-                                    rx.input(
-                                        type_="number",
-                                        min=1,
-                                        value=p["cantidad"],
-                                        on_change=lambda v, idx=i: EventState.update_cantidad(idx, v),
-                                        width="100px"
-                                    ),
+                                        # CANTIDAD
+                                        rx.input(
+                                            type="number",
+                                            min=1,
+                                            value=linea["cantidad"],
+                                            on_change=lambda v, idx=i: EventState.set_linea_cantidad(idx, v),
+                                            width="80px",
+                                        ),
 
-                                    rx.text(
-                                        EventState.subtotales[i],
-                                        color="white",
-                                        width="80px"
-                                    ),
+                                        # SUBTOTAL (var que ya calculas)
+                                        rx.text(
+                                            EventState.lineas_subtotales[i],
+                                            color="white",
+                                            width="90px",
+                                        ),
 
-                                    rx.button(
-                                        "Eliminar",
-                                        on_click=lambda idx=i: EventState.remove_producto(idx),
-                                        color_scheme="gray"
-                                    ),
+                                        # BORRAR (usa lambda con payload)
+                                        rx.button(
+                                            "Borrar",
+                                            on_click=lambda _, idx=i: EventState.eliminar_linea(idx),
+                                            background_color="#d00000",
+                                            _hover={"background_color": "#b00000"},
+                                            cursor="pointer",
+                                        ),
 
-                                    spacing="3",
-                                    margin_bottom="10px",
-                                )
-                            ),
-
-                            # LISTA DE PRODUCTOS A AGREGAR
-                            rx.vstack(
-                                rx.text("Agregar platillo", color="#ddd", margin_top="10px"),
-
-                                rx.foreach(
-                                    EventState.products,
-                                    lambda p: rx.button(
-                                        f"+ {p['name']} (${p['price']:.2f})",
-                                        on_click=lambda pid=p["id"], n=p["name"], pr=p["price"]: EventState.add_producto(pid, n, pr),
-                                        color_scheme="green"
+                                        width="100%",
+                                        spacing="3",
+                                        margin_bottom="12px"
                                     )
-                                ),
-                                spacing="3"
                             ),
 
+                            # GUARDAR
                             rx.button(
                                 "Guardar menú",
                                 on_click=EventState.save_menu,
-                                color_scheme="red",
-                                margin_top="20px"
+                                background_color="#047e00",
+                                _hover={"background_color": "#006605"},
+                                cursor="pointer",
+                                width="100%",
+                                margin_top="15px"
                             ),
 
-                            spacing="5"
                         ),
+
                         background="#1a1a1c",
                         border_radius="15px",
-                        width="600px",
-                        padding="25px"
+                        width="650px",
+                        padding="30px",
                     ),
 
                     open=EventState.menu_modal_open,
                     on_open_change=EventState.toggle_menu_modal,
                 ),
 
+
+                # ----------------------
+                # BOTÓN FINAL
+                # ----------------------
                 rx.button(
                     "Solicitar evento",
                     on_click=lambda: EventState.submit_event(AuthState.current_user),
-                    color_scheme="red",
-                    margin_top="30px"
+                    background_color="#ff0000",
+                    _hover={"background_color": "#b00000"},
+                    cursor="pointer",
+                    border_radius="10px",
+                    padding="10px",
+                    transition= "all 0.2s ease-in-out",
+                    width="100%",
+                    size="3",
+                    margin_top="20px"
                 ),
-
-                spacing="5",
             ),
-
-            padding="40px",
-            background="#0d0d0f",
+            
             margin_left=rx.cond(UIState.sidebar_open, "260px", "0px"),
             transition="margin-left 0.3s ease",
         ),
 
-        
         width="100%",
         min_height="100vh",
+        background=(
+        "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), "
+        "url('https://images.unsplash.com/photo-1529692236671-f1f6cf9683ba')"
+        ),
+        background_size="cover",
+        background_position="center",
     )

@@ -11,7 +11,7 @@ class ReservaState(rx.State):
     fecha: str = ""
     tipo_evento: str = ""
     hora: str = ""
-    cant_personas: str = "1"
+    cant_personas: int = 1
     id_sucursal: int = 1
 
     DURACION_RESERVA_MINUTOS: int = 120
@@ -108,12 +108,23 @@ class ReservaState(rx.State):
         finally:
             if conn:
                 conn.close()
+    
+    def set_cant_personas(self, value: str):
+        try:
+            n = int(value)
+            self.cant_personas = n
+        except:
+            self.cant_personas = 0
 
     async def reservar(self):
         auth = await self.get_state(AuthState)
 
         if not auth.logged_in:
             return rx.toast.error("Debes iniciar sesión primero.", position="bottom-right")
+        
+         # 🔴 VALIDACIÓN NUEVA: cantidad de personas
+        if self.cant_personas < 1:
+            return rx.toast.error("La cantidad mínima es 1 persona.", position="bottom-right")
 
         if not self.fecha or not self.hora or not self.tipo_evento:
             return rx.toast.warning("Por favor completa todos los campos.", position="bottom-right")
@@ -152,6 +163,13 @@ class ReservaState(rx.State):
             self.tipo_evento = ""
             self.hora = ""
             await self.set_fecha_y_buscar_horas(temp_fecha) # Refrescar lista
+        
+            # ----- LIMPIAR FORMULARIO COMPLETO -----
+            self.fecha = ""
+            self.hora = ""
+            self.tipo_evento = ""
+            self.cant_personas = 1
+            self.horas_disponibles = []
             
             return rx.toast.success("¡Reservación realizada con éxito!", position="bottom-right")
 
@@ -194,6 +212,7 @@ def reservaciones_page():
                         rx.text("Fecha", color="white", margin_bottom="5px"),
                         rx.input(
                             type="date",
+                            value=ReservaState.fecha,
                             # 7. AQUÍ CAMBIAMOS EL EVENTO:
                             on_change=ReservaState.set_fecha_y_buscar_horas,
                             size="3",
@@ -246,20 +265,22 @@ def reservaciones_page():
                     rx.vstack(
                         rx.text("Tipo de reservación", color="white", margin_bottom="5px"),
                         rx.input(
-                            placeholder="TRABAJO, FAMILIA, CUMPLEAÑOS...",
+                            placeholder="Trabajo, familia, cumpleaños...",
+                            value=ReservaState.tipo_evento,
                             on_change=ReservaState.set_tipo_evento,
                             size="3", width="100%", background="rgba(255,255,255,0.08)", color="white", border_radius="10px", padding_left="10px",
                         ),
-                        spacing="1", width="50%"
+                        spacing="1", width="70%"
                     ),
                     rx.vstack(
                         rx.text("Cantidad de personas", color="white", margin_bottom="5px"),
                         rx.input(
-                            type="number", min="1",
+                            type="number", min=1,
+                            value=ReservaState.cant_personas,   # ← NECESARIO
                             on_change=ReservaState.set_cant_personas,
                             size="3", width="100%", background="rgba(255,255,255,0.08)", color="white", border_radius="10px", padding_left="10px",
                         ),
-                        spacing="1", width="50%"
+                        spacing="1", width="30%"
                     ),
                     spacing="4", margin_bottom="20px",
                 ),
@@ -275,7 +296,10 @@ def reservaciones_page():
             )
         ),
         width="100%", height="100vh",
-        background_image="url('https://plus.unsplash.com/premium_photo-1661883237884-263e8de8869b?q=80&w=889&auto=format&fit=crop')",
+        background=(
+        "linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), "
+        "url('https://plus.unsplash.com/premium_photo-1661883237884-263e8de8869b?q=80&w=889&auto=format&fit=crop')"
+        ),
         background_size="cover", background_position="center", display="flex", justify_content="center", align_items="center",
         padding_left=rx.cond(UIState.sidebar_open, "260px", "0px"), transition="padding-left 0.3s ease",
     )
