@@ -1,6 +1,7 @@
 import reflex as rx
 from rxconfig import config
 from .login import login_page
+from .register import register_page
 from .auth_state import AuthState
 from .productos import productos_page
 from .reservaciones import reservaciones_page
@@ -8,6 +9,7 @@ from .eventos import eventos_page
 from .perfil import perfil_page
 from .sidebar import sidebar, sidebar_button
 from .ui_state import UIState
+from .admin.dashboard import dashboard_page
 
 # --------------------------
 # COMPONENTE DE SERVICIO REUTILIZABLE
@@ -320,7 +322,9 @@ app = rx.App(stylesheets=[],
     })
 app.add_page(index, title="Leoweb Restaurant")
 app.add_page(login_page, route="/login", title="Iniciar sesión")
+app.add_page(register_page, route="/register", title="Regístrate")
 app.add_page(productos_page, route="/productos", title="Productos")
 app.add_page(reservaciones_page, route="/reservaciones", title="Reservaciones")
 app.add_page(eventos_page, route="/eventos", title="Eventos a Domicilio")
 app.add_page(perfil_page, route="/perfil", title="Perfil")
+app.add_page(dashboard_page, route="/dashboard") # <--- AGREGAR ESTA LÍNEA
