@@ -10,6 +10,9 @@ from .perfil import perfil_page
 from .sidebar import sidebar, sidebar_button
 from .ui_state import UIState
 from .admin.dashboard import dashboard_page
+from .admin.productos import adm_productos_page
+from .admin.reservaciones import adm_reservas_page
+from .admin.eventos import adm_eventos_page
 
 # --------------------------
 # COMPONENTE DE SERVICIO REUTILIZABLE
@@ -327,4 +330,8 @@ app.add_page(productos_page, route="/productos", title="Productos")
 app.add_page(reservaciones_page, route="/reservaciones", title="Reservaciones")
 app.add_page(eventos_page, route="/eventos", title="Eventos a Domicilio")
 app.add_page(perfil_page, route="/perfil", title="Perfil")
-app.add_page(dashboard_page, route="/dashboard") # <--- AGREGAR ESTA LÍNEA
+# ADMIN PAGES
+app.add_page(dashboard_page, route="/dashboard", title="Admin Dashboard")
+app.add_page(adm_productos_page, route="/admin/productos", title="Administrar Productos")
+app.add_page(adm_reservas_page, route="/admin/reservas", title="Administrar Reservas")
+app.add_page(adm_eventos_page, route="/admin/eventos", title="Administrar Eventos")
