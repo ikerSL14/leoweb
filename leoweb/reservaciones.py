@@ -27,6 +27,11 @@ class ReservaState(rx.State):
     # 2. Variable dinámica que alimentará el Select
     horas_disponibles: list[str] = [] 
 
+    @rx.var
+    def fecha_minima(self) -> str:
+        """Devuelve la fecha actual en formato YYYY-MM-DD para bloquear el calendario."""
+        return datetime.date.today().strftime("%Y-%m-%d")
+
     # 3. Disparador: Se ejecuta cuando cambian la fecha
     async def set_fecha_y_buscar_horas(self, fecha: str):
         self.fecha = fecha
@@ -148,6 +153,14 @@ class ReservaState(rx.State):
 
         if not self.fecha or not self.hora or not self.tipo_evento:
             return rx.toast.warning("Por favor completa todos los campos.", position="bottom-right")
+        
+        # 🟢 VALIDACIÓN NUEVA: Fecha pasada
+        try:
+            fecha_seleccionada = datetime.datetime.strptime(self.fecha, "%Y-%m-%d").date()
+            if fecha_seleccionada < datetime.date.today():
+                return rx.toast.error("No puedes reservar en una fecha pasada.", position="bottom-right")
+        except ValueError:
+            return rx.toast.error("Formato de fecha inválido.", position="bottom-right")
 
         # --- GUARDAR EN BD ---
         conn = None 
@@ -236,6 +249,7 @@ def reservaciones_page():
                             value=ReservaState.fecha,
                             # 7. AQUÍ CAMBIAMOS EL EVENTO:
                             on_change=ReservaState.set_fecha_y_buscar_horas,
+                            min=ReservaState.fecha_minima,
                             size="3",
                             width="100%",
                             background="rgba(255,255,255,0.08)",

@@ -2,7 +2,7 @@ import reflex as rx
 from .auth_state import AuthState, get_connection
 from .sidebar import sidebar, sidebar_button
 from .ui_state import UIState
-
+import datetime
 
 # --------------------------------------------------------
 # OBTENER PRODUCTOS DESDE BD
@@ -13,7 +13,7 @@ def fetch_products():
         conn = get_connection()
 
         cur = conn.cursor()
-        cur.execute("SELECT id_producto, nombre, precio FROM menu ORDER BY id_producto;")
+        cur.execute("SELECT id_producto, nombre, precio FROM menu WHERE estado = 'activo' ORDER BY id_producto;")
         rows = cur.fetchall()
 
         for row in rows:
@@ -131,6 +131,12 @@ class EventState(rx.State):
     def on_load(self):
         self.products = fetch_products()
 
+    # Fecha mínima
+    @rx.var
+    def fecha_minima(self) -> str:
+        """Devuelve la fecha actual en formato YYYY-MM-DD para bloquear el calendario."""
+        return datetime.date.today().strftime("%Y-%m-%d")
+
     # ---------------------------------------
     # SETTERS
     # ---------------------------------------
@@ -243,6 +249,14 @@ class EventState(rx.State):
 
         if not self.ubicacion.strip():
             return rx.toast.warning("Escribe la ubicación del evento.", position="bottom-right")
+        
+        # 🟢 VALIDACIÓN NUEVA: Fecha pasada
+        try:
+            fecha_seleccionada = datetime.datetime.strptime(self.fecha, "%Y-%m-%d").date()
+            if fecha_seleccionada < datetime.date.today():
+                return rx.toast.error("No puedes solicitar un evento en una fecha pasada.", position="bottom-right")
+        except ValueError:
+            return rx.toast.error("Formato de fecha inválido.", position="bottom-right")
 
         # ⚠ Validar número de personas
         if self.cant_personas < 1:
@@ -347,6 +361,7 @@ def eventos_page():
                             type="date",
                             value=EventState.fecha,
                             on_change=EventState.set_fecha,
+                            min=EventState.fecha_minima,
                             size="3",
                             width="100%",
                             background="rgba(255,255,255,0.08)",

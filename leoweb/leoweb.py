@@ -13,6 +13,7 @@ from .admin.dashboard import dashboard_page
 from .admin.productos import adm_productos_page
 from .admin.reservaciones import adm_reservas_page
 from .admin.eventos import adm_eventos_page
+from .admin.usuarios import adm_usuarios_page
 
 # --------------------------
 # COMPONENTE DE SERVICIO REUTILIZABLE
@@ -335,3 +336,4 @@ app.add_page(dashboard_page, route="/dashboard", title="Admin Dashboard")
 app.add_page(adm_productos_page, route="/admin/productos", title="Administrar Productos")
 app.add_page(adm_reservas_page, route="/admin/reservas", title="Administrar Reservas")
 app.add_page(adm_eventos_page, route="/admin/eventos", title="Administrar Eventos")
+app.add_page(adm_usuarios_page, route="/admin/usuarios", title="Administrar Usuarios")

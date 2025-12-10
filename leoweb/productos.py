@@ -7,7 +7,7 @@ import os
 # --------------------------
 # CARD DE PRODUCTO MEJORADA
 # --------------------------
-def product_card(name, category, desc, img):
+def product_card(name, category, desc, price, img):
     return rx.box(
         rx.vstack(
             # Imagen
@@ -35,6 +35,13 @@ def product_card(name, category, desc, img):
                     color="#ccc", 
                     size="2",
                     text_align="center",
+                    margin_top="10px"
+                ),
+                rx.text(
+                    f"${price:.2f}", 
+                    color="green", 
+                    font_weight="bold", 
+                    size="5",
                     margin_top="10px"
                 ),
                 spacing="2",
@@ -65,16 +72,17 @@ def fetch_products():
     try:
         conn = get_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id_producto, nombre, descripcion, categoria, img FROM menu ORDER BY id_producto;")
+        cur.execute("SELECT id_producto, nombre, descripcion, categoria, precio, img FROM menu WHERE estado = 'activo' ORDER BY id_producto;")
         rows = cur.fetchall()
         for row in rows:
-            id_producto, nombre, descripcion, categoria, img = row
+            id_producto, nombre, descripcion, categoria, precio, img = row
             # Construir ruta de imagen: imgs/{id}/{img}
             img_path = f"/imgs/{id_producto}/{img}"
             products.append({
                 "name": nombre,
                 "category": categoria,
                 "desc": descripcion,
+                "price": float(precio),
                 "img": img_path
             })
     except Exception as e:
@@ -165,7 +173,7 @@ def productos_page():
                 
                 # Grid de productos dinámico
                 rx.grid(
-                    *[product_card(p["name"], p["category"], p["desc"], p["img"]) for p in products],
+                    *[product_card(p["name"], p["category"], p["desc"], p["price"], p["img"]) for p in products],
                     columns="4",
                     spacing="5",
                     width="100%",
